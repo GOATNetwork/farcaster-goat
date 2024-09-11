@@ -1,0 +1,9 @@
+/Users/dylankawalec/Developer/farcaster-goat/goat-frame/target/debug/deps/libanstyle_parse-3bd813b92d897bc6.rmeta: /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/anstyle-parse-0.2.5/src/lib.rs /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/anstyle-parse-0.2.5/src/params.rs /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/anstyle-parse-0.2.5/src/state/mod.rs /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/anstyle-parse-0.2.5/src/state/definitions.rs /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/anstyle-parse-0.2.5/src/state/table.rs
+
+/Users/dylankawalec/Developer/farcaster-goat/goat-frame/target/debug/deps/anstyle_parse-3bd813b92d897bc6.d: /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/anstyle-parse-0.2.5/src/lib.rs /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/anstyle-parse-0.2.5/src/params.rs /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/anstyle-parse-0.2.5/src/state/mod.rs /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/anstyle-parse-0.2.5/src/state/definitions.rs /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/anstyle-parse-0.2.5/src/state/table.rs
+
+/Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/anstyle-parse-0.2.5/src/lib.rs:
+/Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/anstyle-parse-0.2.5/src/params.rs:
+/Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/anstyle-parse-0.2.5/src/state/mod.rs:
+/Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/anstyle-parse-0.2.5/src/state/definitions.rs:
+/Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/anstyle-parse-0.2.5/src/state/table.rs:

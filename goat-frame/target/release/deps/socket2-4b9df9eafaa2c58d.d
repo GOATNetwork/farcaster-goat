@@ -1,0 +1,11 @@
+/Users/dylankawalec/Developer/farcaster-goat/goat-frame/target/release/deps/libsocket2-4b9df9eafaa2c58d.rmeta: /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/socket2-0.5.7/src/lib.rs /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/socket2-0.5.7/src/sockaddr.rs /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/socket2-0.5.7/src/socket.rs /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/socket2-0.5.7/src/sockref.rs /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/socket2-0.5.7/src/sys/unix.rs
+
+/Users/dylankawalec/Developer/farcaster-goat/goat-frame/target/release/deps/libsocket2-4b9df9eafaa2c58d.rlib: /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/socket2-0.5.7/src/lib.rs /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/socket2-0.5.7/src/sockaddr.rs /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/socket2-0.5.7/src/socket.rs /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/socket2-0.5.7/src/sockref.rs /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/socket2-0.5.7/src/sys/unix.rs
+
+/Users/dylankawalec/Developer/farcaster-goat/goat-frame/target/release/deps/socket2-4b9df9eafaa2c58d.d: /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/socket2-0.5.7/src/lib.rs /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/socket2-0.5.7/src/sockaddr.rs /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/socket2-0.5.7/src/socket.rs /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/socket2-0.5.7/src/sockref.rs /Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/socket2-0.5.7/src/sys/unix.rs
+
+/Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/socket2-0.5.7/src/lib.rs:
+/Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/socket2-0.5.7/src/sockaddr.rs:
+/Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/socket2-0.5.7/src/socket.rs:
+/Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/socket2-0.5.7/src/sockref.rs:
+/Users/dylankawalec/.cargo/registry/src/index.crates.io-6f17d22bba15001f/socket2-0.5.7/src/sys/unix.rs:

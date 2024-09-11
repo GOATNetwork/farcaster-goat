@@ -1,0 +1,1 @@
+fn(actix_web::web::Json<FrameRequest>, Data<{type error}>) -> impl std::future::Future<Output = Result<HttpResponse, AppError>> {handle_frame}
