@@ -1,1 +1,0 @@
-/Users/dylankawalec/Developer/farcaster-goat/goat-frame/target/debug/goat-frame: /Users/dylankawalec/Developer/farcaster-goat/goat-frame/src/config.rs /Users/dylankawalec/Developer/farcaster-goat/goat-frame/src/errors.rs /Users/dylankawalec/Developer/farcaster-goat/goat-frame/src/frame_logic.rs /Users/dylankawalec/Developer/farcaster-goat/goat-frame/src/main.rs

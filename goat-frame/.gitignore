@@ -1,13 +1,20 @@
-
-Cargo.lock
+# Ignore the target directory where Rust build artifacts are stored
 /target
+
+# Ignore build logs
 **/*.log
 
+# Ignore swap files created by text editors
 *.swp
 *.swo
+
+# Ignore VSCode and IntelliJ project files
 .vscode/
 .idea/
 
-
+# Ignore system files
 .DS_Store
 Thumbs.db
+
+# Ignore Cargo.lock (if it's a library crate, but keep if it's a binary crate)
+Cargo.lock
