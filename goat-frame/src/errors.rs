@@ -6,7 +6,7 @@ use log::warn;
 pub enum AppError {
     #[error("Internal server error")]
     InternalServerError,
-    
+   
     #[error("Bad request: {0}")]
     BadRequest(String),
 }
