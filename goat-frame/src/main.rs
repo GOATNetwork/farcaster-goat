@@ -54,7 +54,7 @@ async fn index(config: web::Data<Config>) -> Result<HttpResponse, AppError> {
     if html.is_empty() {
         error!("Failed to generate HTML. Falling back to default content.");
         return Err(AppError::InternalServerError); // Logs the error, does not halt the program
-    }
+    } // may need to design this with proper typescript elements from deno to layer on to this through the binary that it can present through. 
 
     Ok(HttpResponse::Ok().content_type("text/html").body(html))
 }
