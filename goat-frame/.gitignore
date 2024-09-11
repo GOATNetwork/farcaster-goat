@@ -1,0 +1,13 @@
+
+Cargo.lock
+/target
+**/*.log
+
+*.swp
+*.swo
+.vscode/
+.idea/
+
+
+.DS_Store
+Thumbs.db
