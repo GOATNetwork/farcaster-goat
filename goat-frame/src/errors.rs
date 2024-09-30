@@ -1,12 +1,12 @@
-use thiserror::Error;
 use actix_web::{HttpResponse, ResponseError};
 use log::warn;
+use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum AppError {
     #[error("Internal server error")]
     InternalServerError,
-   
+
     #[error("Bad request: {0}")]
     BadRequest(String),
 }

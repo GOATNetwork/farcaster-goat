@@ -1,15 +1,15 @@
-use actix_web::{web, App, HttpServer, HttpResponse};
 use actix_files as fs;
-use serde::{Deserialize, Serialize};
-use log::{info, error}; // Import error to log warnings
+use actix_web::{web, App, HttpResponse, HttpServer};
 use dotenv::dotenv;
+use log::{error, info}; // Import error to log warnings
+use serde::{Deserialize, Serialize};
 
-mod frame_logic;
-mod errors;
 mod config;
+mod errors;
+mod frame_logic;
 
-use crate::errors::AppError;
 use crate::config::Config;
+use crate::errors::AppError;
 use crate::frame_logic::Button;
 
 #[derive(Deserialize)]
@@ -29,13 +29,14 @@ struct FrameResponse {
 }
 
 async fn index(config: web::Data<Config>) -> Result<HttpResponse, AppError> {
-    let html = format!(r#"
+    let html = format!(
+        r#"
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Moxie Store Frame</title>
+        <title>GOAT Frame</title>
         <meta property="fc:frame" content="vNext" />
         <meta property="fc:frame:image" content="{}/assets/main.png" />
         <meta property="fc:frame:button:1" content="Buy & Boost" />
@@ -45,21 +46,26 @@ async fn index(config: web::Data<Config>) -> Result<HttpResponse, AppError> {
         <meta property="fc:frame:post_url" content="{}/api/frame" />
     </head>
     <body>
-        <h1>Moxie Store Frame</h1>
+        <h1>GOAT Frame</h1>
     </body>
     </html>
-    "#, config.domain, config.domain);
+    "#,
+        config.domain, config.domain
+    );
 
     // Check if the html is properly formed; log an error and continue if it's not
     if html.is_empty() {
         error!("Failed to generate HTML. Falling back to default content.");
         return Err(AppError::InternalServerError); // Logs the error, does not halt the program
-    } // may need to design this with proper typescript elements from deno to layer on to this through the binary that it can present through. 
+    } // may need to design this with proper typescript elements from deno to layer on to this through the binary that it can present through.
 
     Ok(HttpResponse::Ok().content_type("text/html").body(html))
 }
 
-async fn handle_frame(req: web::Json<FrameRequest>, config: web::Data<Config>) -> Result<HttpResponse, AppError> {
+async fn handle_frame(
+    req: web::Json<FrameRequest>,
+    config: web::Data<Config>,
+) -> Result<HttpResponse, AppError> {
     info!("Received button click: {}", req.untrusted_data.button_index);
 
     // Handle frame logic and return an error if an asset fails to load
@@ -69,13 +75,20 @@ async fn handle_frame(req: web::Json<FrameRequest>, config: web::Data<Config>) -
             Ok(HttpResponse::Ok().json(response))
         }
         Err(err) => {
-            error!("Failed to process button click: {}. Error: {}", req.untrusted_data.button_index, err);
+            error!(
+                "Failed to process button click: {}. Error: {}",
+                req.untrusted_data.button_index, err
+            );
             // Return default frame with an error logged
             let response = FrameResponse {
                 image: format!("{}/assets/main.png", config.domain),
                 buttons: vec![
-                    Button { label: "Error Occurred".to_string() },
-                    Button { label: "Try Again".to_string() },
+                    Button {
+                        label: "Error Occurred".to_string(),
+                    },
+                    Button {
+                        label: "Try Again".to_string(),
+                    },
                 ],
             };
             Ok(HttpResponse::Ok().json(response)) // Return the response despite the error

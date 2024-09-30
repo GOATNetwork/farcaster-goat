@@ -318,9 +318,9 @@ Replace `your-domain.com` with your actual domain.
 
 3. Test the `/api/frame` endpoint using cURL or Postman:
    ```bash
-   curl -X POST http://localhost:8080/api/frame \
-        -H "Content-Type: application/json" \
-        -d '{"untrustedData": {"buttonIndex": 1}}'
+curl -X POST http://localhost:8080/api/frame \
+-H "Content-Type: application/json" \
+-d '{"untrusted_data": {"button_index": 1}}'
    ```
 
 4. Implement unit and integration tests:
