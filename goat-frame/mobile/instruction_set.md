@@ -1,5 +1,5 @@
 **Introduction**
-
+"Billy The Goat" is an app where users can create a profile, connect their crypto wallet, and earn points by completing challenges. These points can be redeemed for tokens through a smart contract, with secure wallet connections supporting MetaMask and others. Users who are part of the exclusive Founder’s Club get access to a private portal with real-time stats like TVL, TRX, and DAU. The app also features gamified elements like leaderboards, badges, and daily challenges to enhance user engagement, while allowing token claims and data storage through decentralized technologies like with GOAT Network Partner's, such as WeaveVM.
 ## **Final App Outline with Improvements**
 
 ### **Core Functionalities**
