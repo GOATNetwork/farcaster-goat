@@ -8,8 +8,8 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 contract FoundersClub is Ownable, ReentrancyGuard {
     struct Founder {
         address founderAddress;
-        string[] contracts;
-        uint256 points;
+        address[] contracts; // Array of contract addresses registered by the founder
+        uint256 points; // Total points associated with the founder
         uint256 rewards;
         bytes32 apiKey;
         bool isActive;
@@ -19,6 +19,7 @@ contract FoundersClub is Ownable, ReentrancyGuard {
         string name;
         address contractAddress;
         bytes32 abiHash;
+        uint256 points; // Points associated with this specific contract
     }
 
     mapping(address => Founder) public founders;
@@ -47,11 +48,10 @@ contract FoundersClub is Ownable, ReentrancyGuard {
         require(!founders[_founderAddress].isActive, "Founder already registered");
 
         bytes32 apiKey = availableApiKeys[currentApiKeyIndex];
-        string[] memory emptyContracts;
 
         founders[_founderAddress] = Founder({
             founderAddress: _founderAddress,
-            contracts: emptyContracts,
+            contracts: new address , // Initialize an empty array of contract addresses
             points: 0,
             rewards: 0,
             apiKey: apiKey,
@@ -65,10 +65,11 @@ contract FoundersClub is Ownable, ReentrancyGuard {
     }
 
     function registerContract(
-        address founderAddress,  // Specify the founder explicitly
+        address founderAddress,
         string memory _name,
         address _contractAddress,
-        bytes32 _abiHash
+        bytes32 _abiHash,
+        uint256 _points
     ) external onlyOwner {
         require(registeredContracts[_contractAddress].contractAddress == address(0), "Contract already registered");
         require(founders[founderAddress].isActive, "Founder not registered or inactive");
@@ -77,13 +78,16 @@ contract FoundersClub is Ownable, ReentrancyGuard {
         registeredContracts[_contractAddress] = Contract({
             name: _name,
             contractAddress: _contractAddress,
-            abiHash: _abiHash
+            abiHash: _abiHash,
+            points: _points
         });
 
         // Associate the contract with the specified founder's contracts array
-        founders[founderAddress].contracts.push(_name);
+        founders[founderAddress].contracts.push(_contractAddress);
+        founders[founderAddress].points += _points; // Update founder's total points based on contract points
 
         emit ContractRegistered(founderAddress, _contractAddress);
+        emit PointsUpdated(founderAddress, founders[founderAddress].points);
     }
 
     function updatePoints(address _founder, uint256 _points) external onlyOwner {
@@ -101,7 +105,7 @@ contract FoundersClub is Ownable, ReentrancyGuard {
     // Getter functions
     function getFounder(address _founder) external view returns (
         address founderAddress,
-        string[] memory contracts,
+        address[] memory contracts,
         uint256 points,
         uint256 rewards,
         bytes32 apiKey,
@@ -121,13 +125,15 @@ contract FoundersClub is Ownable, ReentrancyGuard {
     function getContract(address _contractAddress) external view returns (
         string memory name,
         address contractAddress,
-        bytes32 abiHash
+        bytes32 abiHash,
+        uint256 points
     ) {
         Contract memory contract_ = registeredContracts[_contractAddress];
         return (
             contract_.name,
             contract_.contractAddress,
-            contract_.abiHash
+            contract_.abiHash,
+            contract_.points
         );
     }
 }
