@@ -9,8 +9,8 @@ contract FoundersClub is Ownable, ReentrancyGuard {
     struct Founder {
         address founderAddress;
         address[] contracts; // Array of contract addresses registered by the founder
-        uint256 points; // Total points associated with the founder
-        uint256 rewards;
+        uint256 totalPoints; // Total points associated with the founder
+        uint256 earnedRewards; // Total rewards associated with the founder
         bytes32 apiKey;
         bool isActive;
     }
@@ -20,6 +20,7 @@ contract FoundersClub is Ownable, ReentrancyGuard {
         address contractAddress;
         bytes32 abiHash;
         uint256 points; // Points associated with this specific contract
+        uint256 rewards; // Rewards associated with this specific contract
     }
 
     mapping(address => Founder) public founders;
@@ -32,8 +33,8 @@ contract FoundersClub is Ownable, ReentrancyGuard {
 
     event FounderRegistered(address indexed founder, bytes32 apiKey);
     event ContractRegistered(address indexed founder, address contractAddress);
-    event PointsUpdated(address indexed founder, uint256 points);
-    event RewardsAllocated(address indexed founder, uint256 rewards);
+    event PointsUpdated(address indexed founder, uint256 totalPoints);
+    event RewardsAllocated(address indexed founder, uint256 earnedRewards);
 
     constructor() {
         currentApiKeyIndex = 0;
@@ -52,8 +53,8 @@ contract FoundersClub is Ownable, ReentrancyGuard {
         founders[_founderAddress] = Founder({
             founderAddress: _founderAddress,
             contracts: new address , // Initialize an empty array of contract addresses
-            points: 0,
-            rewards: 0,
+            totalPoints: 0,
+            earnedRewards: 0,
             apiKey: apiKey,
             isActive: true
         });
@@ -69,7 +70,8 @@ contract FoundersClub is Ownable, ReentrancyGuard {
         string memory _name,
         address _contractAddress,
         bytes32 _abiHash,
-        uint256 _points
+        uint256 _points,
+        uint256 _rewards
     ) external onlyOwner {
         require(registeredContracts[_contractAddress].contractAddress == address(0), "Contract already registered");
         require(founders[founderAddress].isActive, "Founder not registered or inactive");
@@ -79,35 +81,68 @@ contract FoundersClub is Ownable, ReentrancyGuard {
             name: _name,
             contractAddress: _contractAddress,
             abiHash: _abiHash,
-            points: _points
+            points: _points,
+            rewards: _rewards
         });
 
         // Associate the contract with the specified founder's contracts array
         founders[founderAddress].contracts.push(_contractAddress);
-        founders[founderAddress].points += _points; // Update founder's total points based on contract points
 
         emit ContractRegistered(founderAddress, _contractAddress);
-        emit PointsUpdated(founderAddress, founders[founderAddress].points);
     }
 
-    function updatePoints(address _founder, uint256 _points) external onlyOwner {
-        require(founders[_founder].isActive, "Not a registered founder");
-        founders[_founder].points = _points;
-        emit PointsUpdated(_founder, _points);
+    // Function to update total points and earned rewards for a specific founder, resetting contract points and rewards to zero
+    function updateTotalPointsAndRewards(address _founderAddress) public {
+        require(founders[_founderAddress].isActive, "Not a registered founder");
+
+        uint256 totalPoints = 0;
+        uint256 earnedRewards = 0;
+
+        // Sum up points and rewards from each contract associated with the founder, then reset them to zero
+        for (uint i = 0; i < founders[_founderAddress].contracts.length; i++) {
+            address contractAddress = founders[_founderAddress].contracts[i];
+            Contract storage contractData = registeredContracts[contractAddress];
+            totalPoints += contractData.points;
+            earnedRewards += contractData.rewards;
+
+            // Reset the contract's points and rewards to zero after adding them to the founder's totals
+            contractData.points = 0;
+            contractData.rewards = 0;
+        }
+
+        // Update the founder's total points and earned rewards
+        founders[_founderAddress].totalPoints += totalPoints;
+        founders[_founderAddress].earnedRewards += earnedRewards;
+
+        emit PointsUpdated(_founderAddress, founders[_founderAddress].totalPoints);
+        emit RewardsAllocated(_founderAddress, founders[_founderAddress].earnedRewards);
     }
 
-    function allocateRewards(address _founder, uint256 _rewards) external onlyOwner {
-        require(founders[_founder].isActive, "Not a registered founder");
-        founders[_founder].rewards = _rewards;
-        emit RewardsAllocated(_founder, _rewards);
+    // Function to update points and rewards for a specific contract, adding to founder’s totals and resetting the contract
+    function updatePointsAndRewardsForContract(address _founderAddress, address _contractAddress) public {
+        require(founders[_founderAddress].isActive, "Not a registered founder");
+        require(registeredContracts[_contractAddress].contractAddress != address(0), "Contract not registered");
+
+        Contract storage contractData = registeredContracts[_contractAddress];
+
+        // Add the contract's points and rewards to the founder's totals
+        founders[_founderAddress].totalPoints += contractData.points;
+        founders[_founderAddress].earnedRewards += contractData.rewards;
+
+        // Reset the contract's points and rewards to zero
+        contractData.points = 0;
+        contractData.rewards = 0;
+
+        emit PointsUpdated(_founderAddress, founders[_founderAddress].totalPoints);
+        emit RewardsAllocated(_founderAddress, founders[_founderAddress].earnedRewards);
     }
 
     // Getter functions
     function getFounder(address _founder) external view returns (
         address founderAddress,
         address[] memory contracts,
-        uint256 points,
-        uint256 rewards,
+        uint256 totalPoints,
+        uint256 earnedRewards,
         bytes32 apiKey,
         bool isActive
     ) {
@@ -115,8 +150,8 @@ contract FoundersClub is Ownable, ReentrancyGuard {
         return (
             founder.founderAddress,
             founder.contracts,
-            founder.points,
-            founder.rewards,
+            founder.totalPoints,
+            founder.earnedRewards,
             founder.apiKey,
             founder.isActive
         );
@@ -126,14 +161,16 @@ contract FoundersClub is Ownable, ReentrancyGuard {
         string memory name,
         address contractAddress,
         bytes32 abiHash,
-        uint256 points
+        uint256 points,
+        uint256 rewards
     ) {
         Contract memory contract_ = registeredContracts[_contractAddress];
         return (
             contract_.name,
             contract_.contractAddress,
             contract_.abiHash,
-            contract_.points
+            contract_.points,
+            contract_.rewards
         );
     }
 }
