@@ -40,7 +40,7 @@ contract FoundersClub is Ownable, ReentrancyGuard {
     constructor() {
         currentApiKeyIndex = 0;
         // Initialize API keys
-        for(uint i = 0; i < MAX_API_KEYS; i++) {
+        for (uint i = 0; i < MAX_API_KEYS; i++) {
             availableApiKeys.push(keccak256(abi.encodePacked(i)));
         }
     }
@@ -68,13 +68,15 @@ contract FoundersClub is Ownable, ReentrancyGuard {
     }
 
     function registerContract(
+        address founderAddress,  // Specify the founder explicitly
         string memory _name,
         address _contractAddress,
         bytes32 _abiHash
-    ) external {
-        require(founders[msg.sender].isActive, "Not a registered founder");
+    ) external onlyOwner {
         require(registeredContracts[_contractAddress].contractAddress == address(0), "Contract already registered");
+        require(founders[founderAddress].isActive, "Founder not registered or inactive");
 
+        // Register the contract in the mapping
         registeredContracts[_contractAddress] = Contract({
             name: _name,
             contractAddress: _contractAddress,
@@ -84,9 +86,10 @@ contract FoundersClub is Ownable, ReentrancyGuard {
             trx: 0
         });
 
-        founders[msg.sender].contracts.push(_name);
+        // Associate the contract with the specified founder's contracts array
+        founders[founderAddress].contracts.push(_name);
 
-        emit ContractRegistered(msg.sender, _contractAddress);
+        emit ContractRegistered(founderAddress, _contractAddress);
     }
 
     function updateMetrics(
