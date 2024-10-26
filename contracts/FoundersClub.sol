@@ -19,9 +19,6 @@ contract FoundersClub is Ownable, ReentrancyGuard {
         string name;
         address contractAddress;
         bytes32 abiHash;
-        uint256 tvl;
-        uint256 dau;
-        uint256 trx;
     }
 
     mapping(address => Founder) public founders;
@@ -80,30 +77,13 @@ contract FoundersClub is Ownable, ReentrancyGuard {
         registeredContracts[_contractAddress] = Contract({
             name: _name,
             contractAddress: _contractAddress,
-            abiHash: _abiHash,
-            tvl: 0,
-            dau: 0,
-            trx: 0
+            abiHash: _abiHash
         });
 
         // Associate the contract with the specified founder's contracts array
         founders[founderAddress].contracts.push(_name);
 
         emit ContractRegistered(founderAddress, _contractAddress);
-    }
-
-    function updateMetrics(
-        address _contractAddress,
-        uint256 _tvl,
-        uint256 _dau,
-        uint256 _trx
-    ) external onlyOwner {
-        require(registeredContracts[_contractAddress].contractAddress != address(0), "Contract not registered");
-
-        Contract storage contract_ = registeredContracts[_contractAddress];
-        contract_.tvl = _tvl;
-        contract_.dau = _dau;
-        contract_.trx = _trx;
     }
 
     function updatePoints(address _founder, uint256 _points) external onlyOwner {
@@ -141,19 +121,13 @@ contract FoundersClub is Ownable, ReentrancyGuard {
     function getContract(address _contractAddress) external view returns (
         string memory name,
         address contractAddress,
-        bytes32 abiHash,
-        uint256 tvl,
-        uint256 dau,
-        uint256 trx
+        bytes32 abiHash
     ) {
         Contract memory contract_ = registeredContracts[_contractAddress];
         return (
             contract_.name,
             contract_.contractAddress,
-            contract_.abiHash,
-            contract_.tvl,
-            contract_.dau,
-            contract_.trx
+            contract_.abiHash
         );
     }
 }
