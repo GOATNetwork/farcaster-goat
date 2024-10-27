@@ -1,176 +1,597 @@
-// contracts/FoundersClub.sol
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.26;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-contract FoundersClub is Ownable, ReentrancyGuard {
+/**
+ * @title FoundersClub
+ * @dev Manages founder points and rewards with admin control and secure batch operations.
+ * @custom:security-contact security@foundersclub.network
+ */
+contract FoundersClub is Ownable, ReentrancyGuard, Pausable {
+    using EnumerableSet for EnumerableSet.Bytes32Set;
+    using EnumerableSet for EnumerableSet.AddressSet;
+
+    // ================================
+    // ========== Structs =============
+    // ================================
+
     struct Founder {
-        address founderAddress;
-        address[] contracts; // Array of contract addresses registered by the founder
-        uint256 totalPoints; // Total points associated with the founder
-        uint256 earnedRewards; // Total rewards associated with the founder
+        address[] contracts;
+        uint256 allocatedPoints;     // Total points allocated by admin
+        uint256 distributedPoints;   // Points distributed to contracts
+        uint256 earnedRewards;       // Claimed rewards
         bytes32 apiKey;
         bool isActive;
+        string founderName;
     }
 
-    struct Contract {
+    struct ContractInfo {
         string name;
         address contractAddress;
         bytes32 abiHash;
-        uint256 points; // Points associated with this specific contract
-        uint256 rewards; // Rewards associated with this specific contract
+        uint256 currentPoints;       // Current active points
+        uint256 pendingRewards;      // Unconverted rewards
+        uint256 claimedRewards;      // Converted rewards
+        string category;
+        bool isVerified;
     }
 
-    mapping(address => Founder) public founders;
-    mapping(bytes32 => address) public apiKeyToFounder;
-    mapping(address => Contract) public registeredContracts;
+    // ================================
+    // ========== State Variables =====
+    // ================================
+    modifier onlyAdminOrFounder() {
+    require(
+        msg.sender == owner() || 
+        (founders[msg.sender].isActive && msg.sender != address(0)),
+        "Not authorized: Neither admin nor active founder"
+    );
+    _;
+}
+
+    mapping(address => Founder) private founders;
+    mapping(bytes32 => address) private apiKeyToFounder;
+    mapping(address => ContractInfo) private registeredContracts;
+    mapping(string => EnumerableSet.AddressSet) private categoryContracts;
+
+    EnumerableSet.Bytes32Set private allApiKeys;
+    EnumerableSet.AddressSet private activeFounders;
+
+    // Constants
+    uint256 public constant MAX_CONTRACTS_PER_FOUNDER = 10;
+    uint256 public constant REWARDS_CONVERSION_RATE = 100; // 100 points = 1 reward
+
+    // ================================
+    // ========== Events ==============
+    // ================================
+
+    // Core Points Flow Events
+    event PointsAllocated(address indexed founder, uint256 amount);
+    event PointsDistributed(address indexed founder, address indexed contractAddress, uint256 amount);
+    event PointsConverted(address indexed contractAddress, uint256 pointsConverted, uint256 rewardsGenerated);
+    event RewardsClaimed(address indexed founder, address indexed contractAddress, uint256 amount);
     
-    uint256 public constant MAX_API_KEYS = 1000;
-    bytes32[] public availableApiKeys;
-    uint256 public currentApiKeyIndex;
+    // Admin Management Events
+    event FounderRegistered(address indexed founder, bytes32 apiKey, string name);
+    event FounderApiKeyUpdated(address indexed founder, bytes32 newApiKey);
+    event ContractRegistered(address indexed founder, address indexed contractAddress, string name, string category);
+    event ContractVerificationChanged(address indexed contractAddress, bool verified);
+    event FounderStatusChanged(address indexed founder, bool isActive);
 
-    event FounderRegistered(address indexed founder, bytes32 apiKey);
-    event ContractRegistered(address indexed founder, address contractAddress);
-    event PointsUpdated(address indexed founder, uint256 totalPoints);
-    event RewardsAllocated(address indexed founder, uint256 earnedRewards);
+    // ================================
+    // ========== Errors ==============
+    // ================================
 
-    constructor() {
-        currentApiKeyIndex = 0;
-        // Initialize API keys
-        for (uint i = 0; i < MAX_API_KEYS; i++) {
-            availableApiKeys.push(keccak256(abi.encodePacked(i)));
+    error FounderAlreadyRegistered(address founder);
+    error FounderNotRegistered(address founder);
+    error FounderNotActive(address founder);
+    error InvalidApiKey(bytes32 apiKey);
+    error ContractAlreadyRegistered(address contractAddress);
+    error ContractNotRegistered(address contractAddress);
+    error ContractNotOwnedByFounder(address founder, address contractAddress);
+    error InsufficientAllocatedPoints(uint256 requested, uint256 available);
+    error InsufficientPoints(uint256 requested, uint256 available);
+    error NoRewardsToClaim(address contractAddress);
+    error ZeroAddressNotAllowed();
+    error EmptyStringNotAllowed();
+    error TooManyContracts(address founder);
+
+    // ================================
+    // ========== Constructor =========
+    // ================================
+
+    constructor(address initialOwner) Ownable(initialOwner) {
+        _pause(); // Start paused for safety
+    }
+function validateContractOwnership(
+    address founderAddress,
+    address contractAddress
+) internal view returns (bool) {
+    Founder storage founder = founders[founderAddress];
+    for (uint256 i = 0; i < founder.contracts.length; i++) {
+        if (founder.contracts[i] == contractAddress) {
+            return true;
         }
     }
+    return false;
+}
+    // ==================================
+    // ======== Core Points Flow ========
+    // ==================================
 
-    function registerFounder(address _founderAddress) external onlyOwner {
-        require(currentApiKeyIndex < MAX_API_KEYS, "No more API keys available");
-        require(!founders[_founderAddress].isActive, "Founder already registered");
+    /**
+     * @dev Allocates points to a founder's total balance.
+     * @param founderAddress Address of the founder.
+     * @param points Number of points to allocate.
+     */
+    function allocatePointsToFounder(
+        address founderAddress,
+        uint256 points
+    ) external onlyOwner whenNotPaused {
+        if (points == 0) return;
+        if (!founders[founderAddress].isActive) 
+            revert FounderNotActive(founderAddress);
 
-        bytes32 apiKey = availableApiKeys[currentApiKeyIndex];
+        founders[founderAddress].allocatedPoints += points;
+        emit PointsAllocated(founderAddress, points);
+    }
 
-        founders[_founderAddress] = Founder({
-            founderAddress: _founderAddress,
-            contracts: new address , // Initialize an empty array of contract addresses
-            totalPoints: 0,
+    /**
+     * @dev Distributes points from founder's allocated balance to a specific contract.
+     * @param founderAddress Address of the founder.
+     * @param contractAddress Address of the contract.
+     * @param points Number of points to distribute to the contract.
+     */
+    function distributePointsToContract(
+        address founderAddress,
+        address contractAddress,
+        uint256 points
+    ) external onlyOwner whenNotPaused {
+        if (points == 0) return;
+        
+        Founder storage founder = founders[founderAddress];
+        if (!founder.isActive) revert FounderNotActive(founderAddress);
+        
+        uint256 availablePoints = founder.allocatedPoints - founder.distributedPoints;
+        if (points > availablePoints)
+            revert InsufficientAllocatedPoints(points, availablePoints);
+
+        ContractInfo storage contract_ = registeredContracts[contractAddress];
+        if (contract_.contractAddress == address(0))
+            revert ContractNotRegistered(contractAddress);
+
+        founder.distributedPoints += points;
+        contract_.currentPoints += points;
+       
+        emit PointsDistributed(founderAddress, contractAddress, points);
+    }
+
+    /**
+     * @dev Converts contract points to rewards.
+     * @param founderAddress Address of the founder.
+     * @param contractAddress Address of the contract.
+     * @param pointsToConvert Number of points to convert to rewards.
+     */
+    function convertPointsToRewards(
+        address founderAddress,
+        address contractAddress,
+        uint256 pointsToConvert
+    ) external onlyOwner whenNotPaused {
+        require(validateContractOwnership(founderAddress, contractAddress), "Not owner");
+        if (pointsToConvert == 0) return;
+        
+        ContractInfo storage contract_ = registeredContracts[contractAddress];
+        if (contract_.contractAddress == address(0))
+            revert ContractNotRegistered(contractAddress);
+            
+        if (pointsToConvert > contract_.currentPoints)
+            revert InsufficientPoints(pointsToConvert, contract_.currentPoints);
+            
+        uint256 rewardsToAdd = pointsToConvert / REWARDS_CONVERSION_RATE;
+        
+        contract_.currentPoints -= pointsToConvert;
+        contract_.pendingRewards += rewardsToAdd;
+        
+        emit PointsConverted(contractAddress, pointsToConvert, rewardsToAdd);
+    }
+
+    /**
+     * @dev Claims pending rewards for a contract and adds them to founder's earned rewards.
+     * @param founderAddress Address of the founder.
+     * @param contractAddress Address of the contract.
+     */
+    function claimRewards(
+        address founderAddress,
+        address contractAddress
+    ) external onlyOwner whenNotPaused {
+        require(validateContractOwnership(founderAddress, contractAddress), "Not owner");
+
+        Founder storage founder = founders[founderAddress];
+        if (!founder.isActive) revert FounderNotActive(founderAddress);
+
+        ContractInfo storage contract_ = registeredContracts[contractAddress];
+        if (contract_.pendingRewards == 0) 
+            revert NoRewardsToClaim(contractAddress);
+        
+        uint256 rewardsToClaim = contract_.pendingRewards;
+        contract_.pendingRewards = 0;
+        contract_.claimedRewards += rewardsToClaim;
+        founder.earnedRewards += rewardsToClaim;
+        
+        emit RewardsClaimed(founderAddress, contractAddress, rewardsToClaim);
+    }
+
+    // ==================================
+    // ======= Admin Management =========
+    // ==================================
+
+    /**
+     * @dev Registers a new founder.
+     * @param founderAddress Address of the founder to register.
+     * @param name Name of the founder.
+     */
+    function registerFounder(
+        address founderAddress,
+        string memory name
+    ) external onlyOwner whenNotPaused {
+        if (founderAddress == address(0)) revert ZeroAddressNotAllowed();
+        if (bytes(name).length == 0) revert EmptyStringNotAllowed();
+        if (founders[founderAddress].isActive)
+            revert FounderAlreadyRegistered(founderAddress);
+
+        founders[founderAddress] = Founder({
+            contracts: new address[](0),
+            allocatedPoints: 0,
+            distributedPoints: 0,
             earnedRewards: 0,
-            apiKey: apiKey,
-            isActive: true
+            apiKey: bytes32(0),
+            isActive: true,
+            founderName: name
         });
 
-        apiKeyToFounder[apiKey] = _founderAddress;
-        currentApiKeyIndex++;
-
-        emit FounderRegistered(_founderAddress, apiKey);
+        activeFounders.add(founderAddress);
+        emit FounderRegistered(founderAddress, bytes32(0), name);
     }
 
-    function registerContract(
+   /**
+ * @dev Registers a new contract for a founder.
+ * @param founderAddress Address of the founder.
+ * @param name Name of the contract.
+ * @param contractAddress Address of the contract.
+ * @param abiHash ABI hash of the contract.
+ * @param category Category of the contract.
+ */
+function registerContract(
+    address founderAddress,
+    string memory name,
+    address contractAddress,
+    bytes32 abiHash,
+    string memory category
+) external onlyOwner whenNotPaused {
+    if (contractAddress == address(0)) revert ZeroAddressNotAllowed();
+    if (bytes(name).length == 0) revert EmptyStringNotAllowed();
+    if (!founders[founderAddress].isActive) 
+        revert FounderNotActive(founderAddress);
+    if (registeredContracts[contractAddress].contractAddress != address(0))
+        revert ContractAlreadyRegistered(contractAddress);
+    if (founders[founderAddress].contracts.length >= MAX_CONTRACTS_PER_FOUNDER)
+        revert TooManyContracts(founderAddress);
+
+    // Check for duplicate contracts across all founders
+    uint256 activeFoundersCount = activeFounders.length();
+    for (uint256 i = 0; i < activeFoundersCount; i++) {
+        address currentFounder = activeFounders.at(i);
+        Founder storage founder = founders[currentFounder];
+        
+        for (uint256 j = 0; j < founder.contracts.length; j++) {
+            if (founder.contracts[j] == contractAddress) {
+                revert ContractAlreadyRegistered(contractAddress);
+            }
+        }
+    }
+
+    registeredContracts[contractAddress] = ContractInfo({
+        name: name,
+        contractAddress: contractAddress,
+        abiHash: abiHash,
+        currentPoints: 0,
+        pendingRewards: 0,
+        claimedRewards: 0,
+        category: category,
+        isVerified: false
+    });
+
+    founders[founderAddress].contracts.push(contractAddress);
+    if (bytes(category).length > 0) {
+        categoryContracts[category].add(contractAddress);
+    }
+
+    emit ContractRegistered(founderAddress, contractAddress, name, category);
+}
+
+    /**
+     * @dev Updates or sets a founder's API key.
+     * @param founderAddress Address of the founder.
+     * @param apiKey Existing API key of the founder.
+     * @param newApiKey New API key to set.
+     */
+    function updateApiKey(
         address founderAddress,
-        string memory _name,
-        address _contractAddress,
-        bytes32 _abiHash,
-        uint256 _points,
-        uint256 _rewards
-    ) external onlyOwner {
-        require(registeredContracts[_contractAddress].contractAddress == address(0), "Contract already registered");
-        require(founders[founderAddress].isActive, "Founder not registered or inactive");
+        bytes32 apiKey,
+        bytes32 newApiKey
+    ) external onlyOwner whenNotPaused {
+        if (!founders[founderAddress].isActive) 
+            revert FounderNotActive(founderAddress);
+if (apiKey == bytes32(0) && newApiKey == bytes32(0)) revert InvalidApiKey(apiKey);
 
-        // Register the contract in the mapping
-        registeredContracts[_contractAddress] = Contract({
-            name: _name,
-            contractAddress: _contractAddress,
-            abiHash: _abiHash,
-            points: _points,
-            rewards: _rewards
-        });
 
-        // Associate the contract with the specified founder's contracts array
-        founders[founderAddress].contracts.push(_contractAddress);
+        Founder storage founder = founders[founderAddress];
 
-        emit ContractRegistered(founderAddress, _contractAddress);
-    }
-
-    // Function to update total points and earned rewards for a specific founder, resetting contract points and rewards to zero
-    function updateTotalPointsAndRewards(address _founderAddress) public {
-        require(founders[_founderAddress].isActive, "Not a registered founder");
-
-        uint256 totalPoints = 0;
-        uint256 earnedRewards = 0;
-
-        // Sum up points and rewards from each contract associated with the founder, then reset them to zero
-        for (uint i = 0; i < founders[_founderAddress].contracts.length; i++) {
-            address contractAddress = founders[_founderAddress].contracts[i];
-            Contract storage contractData = registeredContracts[contractAddress];
-            totalPoints += contractData.points;
-            earnedRewards += contractData.rewards;
-
-            // Reset the contract's points and rewards to zero after adding them to the founder's totals
-            contractData.points = 0;
-            contractData.rewards = 0;
+        if (founder.apiKey == bytes32(0)) {
+            founder.apiKey = apiKey;
+            apiKeyToFounder[apiKey] = founderAddress;
+            allApiKeys.add(apiKey);
+        } else {
+            delete apiKeyToFounder[apiKey];
+            allApiKeys.remove(apiKey);
+            
+            founder.apiKey = newApiKey;
+            apiKeyToFounder[newApiKey] = founderAddress;
+            allApiKeys.add(newApiKey);
         }
 
-        // Update the founder's total points and earned rewards
-        founders[_founderAddress].totalPoints += totalPoints;
-        founders[_founderAddress].earnedRewards += earnedRewards;
-
-        emit PointsUpdated(_founderAddress, founders[_founderAddress].totalPoints);
-        emit RewardsAllocated(_founderAddress, founders[_founderAddress].earnedRewards);
+        emit FounderApiKeyUpdated(founderAddress, founder.apiKey);
     }
 
-    // Function to update points and rewards for a specific contract, adding to founder’s totals and resetting the contract
-    function updatePointsAndRewardsForContract(address _founderAddress, address _contractAddress) public {
-        require(founders[_founderAddress].isActive, "Not a registered founder");
-        require(registeredContracts[_contractAddress].contractAddress != address(0), "Contract not registered");
+    // ==================================
+    // ========= View Functions =========
+    // ==================================
 
-        Contract storage contractData = registeredContracts[_contractAddress];
-
-        // Add the contract's points and rewards to the founder's totals
-        founders[_founderAddress].totalPoints += contractData.points;
-        founders[_founderAddress].earnedRewards += contractData.rewards;
-
-        // Reset the contract's points and rewards to zero
-        contractData.points = 0;
-        contractData.rewards = 0;
-
-        emit PointsUpdated(_founderAddress, founders[_founderAddress].totalPoints);
-        emit RewardsAllocated(_founderAddress, founders[_founderAddress].earnedRewards);
-    }
-
-    // Getter functions
-    function getFounder(address _founder) external view returns (
-        address founderAddress,
-        address[] memory contracts,
-        uint256 totalPoints,
-        uint256 earnedRewards,
-        bytes32 apiKey,
-        bool isActive
-    ) {
-        Founder memory founder = founders[_founder];
+    /**
+     * @dev Get founder's complete status.
+     * @param founderAddress Address of the founder.
+     */
+    function getFounderStatus(
+    address founderAddress
+) external view onlyAdminOrFounder returns (
+    string memory founderName,
+    uint256 allocatedPoints,
+    uint256 distributedPoints,
+    uint256 availablePoints,
+    uint256 earnedRewards,
+    uint256 contractCount,
+    bool isActive
+) {
+        Founder storage founder = founders[founderAddress];
         return (
-            founder.founderAddress,
-            founder.contracts,
-            founder.totalPoints,
+            founder.founderName,
+            founder.allocatedPoints,
+            founder.distributedPoints,
+            founder.allocatedPoints - founder.distributedPoints,
             founder.earnedRewards,
-            founder.apiKey,
+            founder.contracts.length,
             founder.isActive
         );
     }
 
-    function getContract(address _contractAddress) external view returns (
-        string memory name,
-        address contractAddress,
-        bytes32 abiHash,
-        uint256 points,
-        uint256 rewards
-    ) {
-        Contract memory contract_ = registeredContracts[_contractAddress];
+    /**
+     * @dev Get contract's complete status.
+     * @param contractAddress Address of the contract.
+     */
+    function getContractStatus(
+    address contractAddress
+) external view onlyAdminOrFounder returns (
+    string memory name,
+    string memory category,
+    uint256 currentPoints,
+    uint256 pendingRewards,
+    uint256 claimedRewards,
+    bool isVerified
+) {
+        ContractInfo storage contract_ = registeredContracts[contractAddress];
         return (
             contract_.name,
-            contract_.contractAddress,
-            contract_.abiHash,
-            contract_.points,
-            contract_.rewards
+            contract_.category,
+            contract_.currentPoints,
+            contract_.pendingRewards,
+            contract_.claimedRewards,
+            contract_.isVerified
         );
+    }
+
+    /**
+     * @dev Get all contracts for a founder with their current status.
+     * @param founderAddress Address of the founder.
+     */
+    function getFounderContracts(
+    address founderAddress
+) external view onlyAdminOrFounder returns (
+    address[] memory contractAddresses,
+    string[] memory names,
+    uint256[] memory points,
+    uint256[] memory pendingRewards,
+    bool[] memory verificationStatus
+) {
+        Founder storage founder = founders[founderAddress];
+        uint256 length = founder.contracts.length;
+        
+        contractAddresses = new address[](length);
+        names = new string[](length);
+        points = new uint256[](length);
+        pendingRewards = new uint256[](length);
+        verificationStatus = new bool[](length);
+        
+        for (uint256 i = 0; i < length; i++) {
+            address contractAddr = founder.contracts[i];
+            ContractInfo storage contractInfo = registeredContracts[contractAddr];
+            
+            contractAddresses[i] = contractAddr;
+            names[i] = contractInfo.name;
+            points[i] = contractInfo.currentPoints;
+            pendingRewards[i] = contractInfo.pendingRewards;
+            verificationStatus[i] = contractInfo.isVerified;
+        }
+    }
+
+    /**
+     * @dev Get total statistics for all active founders and verified contracts.
+     */
+    function getTotalStats() external view onlyAdminOrFounder returns (
+    uint256 totalFounders,
+    uint256 totalContracts,
+    uint256 totalActiveFounders,
+    uint256 totalVerifiedContracts
+) {
+        totalActiveFounders = activeFounders.length();
+        uint256 verifiedCount = 0;
+        uint256 contractCount = 0;
+
+        for (uint256 i = 0; i < activeFounders.length(); i++) {
+            address founderAddr = activeFounders.at(i);
+            contractCount += founders[founderAddr].contracts.length;
+
+            for (uint256 j = 0; j < founders[founderAddr].contracts.length; j++) {
+                address contractAddr = founders[founderAddr].contracts[j];
+                if (registeredContracts[contractAddr].isVerified) {
+                    verifiedCount++;
+                }
+            }
+        }
+
+        return (
+            activeFounders.length(),
+            contractCount,
+            totalActiveFounders,
+            verifiedCount
+        );
+    }
+
+    // ==================================
+    // ======= Utility Functions ========
+    // ==================================
+
+    /**
+     * @dev Update founder status (active/inactive).
+     * @param founderAddress Address of the founder.
+     * @param isActive Boolean indicating whether the founder is active.
+     */
+    function updateFounderStatus(
+        address founderAddress,
+        bool isActive
+    ) external onlyOwner whenNotPaused {
+        if (founders[founderAddress].apiKey == bytes32(0))
+            revert FounderNotRegistered(founderAddress);
+
+        founders[founderAddress].isActive = isActive;
+        
+        if (isActive) {
+            activeFounders.add(founderAddress);
+        } else {
+            activeFounders.remove(founderAddress);
+        }
+        
+        emit FounderStatusChanged(founderAddress, isActive);
+    }
+
+    /**
+     * @dev Verify or unverify a contract.
+     * @param contractAddress Address of the contract.
+     * @param verified Boolean indicating verification status.
+     */
+    function verifyContract(
+        address contractAddress,
+        bool verified
+    ) external onlyOwner whenNotPaused {
+        ContractInfo storage contract_ = registeredContracts[contractAddress];
+        if (contract_.contractAddress == address(0))
+            revert ContractNotRegistered(contractAddress);
+
+        contract_.isVerified = verified;
+        emit ContractVerificationChanged(contractAddress, verified);
+    }
+
+    /**
+     * @dev Emergency pause function to halt operations.
+     */
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /**
+     * @dev Resume contract operations after pause.
+     */
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
+    // ==================================
+    // ===== Additional Utility Functions =====
+    // ==================================
+
+    /**
+     * @dev Retrieve a founder's details by their API key.
+     * @param apiKey The API key associated with the founder.
+     * @return founderAddress The address of the founder.
+     * @return founderName The name of the founder.
+     * @return allocatedPoints The total points allocated to the founder.
+     * @return availablePoints The available points for the founder.
+     * @return earnedRewards The total rewards the founder has earned.
+     * @return isActive Boolean indicating if the founder is active.
+     */
+    function getFounderByApiKey(
+    bytes32 apiKey
+) external view onlyAdminOrFounder returns (
+    address founderAddress,
+    string memory founderName,
+    uint256 allocatedPoints,
+    uint256 availablePoints,
+    uint256 earnedRewards,
+    bool isActive
+) {
+        founderAddress = apiKeyToFounder[apiKey];
+        if (founderAddress == address(0)) revert InvalidApiKey(apiKey);
+
+        Founder storage founder = founders[founderAddress];
+        return (
+            founderAddress,
+            founder.founderName,
+            founder.allocatedPoints,
+            founder.allocatedPoints - founder.distributedPoints,
+            founder.earnedRewards,
+            founder.isActive
+        );
+    }
+
+    /**
+     * @dev Retrieve the list of all active founders with their basic info.
+     * @return addresses Array of addresses for each active founder.
+     * @return names Array of names for each active founder.
+     * @return allocatedPoints Array of allocated points for each active founder.
+     * @return earnedRewards Array of earned rewards for each active founder.
+     */
+    function getActiveFounders() external view onlyAdminOrFounder returns (
+    address[] memory addresses,
+    string[] memory names,
+    uint256[] memory allocatedPoints,
+    uint256[] memory earnedRewards
+) {
+        uint256 count = activeFounders.length();
+        addresses = new address[](count);
+        names = new string[](count);
+        allocatedPoints = new uint256[](count);
+        earnedRewards = new uint256[](count);
+
+        for (uint256 i = 0; i < count; i++) {
+            address founderAddr = activeFounders.at(i);
+            Founder storage founder = founders[founderAddr];
+            
+            addresses[i] = founderAddr;
+            names[i] = founder.founderName;
+            allocatedPoints[i] = founder.allocatedPoints;
+            earnedRewards[i] = founder.earnedRewards;
+        }
     }
 }
